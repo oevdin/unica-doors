@@ -1,74 +1,51 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>UNICA Doors — двери и комплектующие</title>
-<meta name="theme-color" content="#1f2328">
+<title>UNICA — продажи и учёт</title>
+<meta name="theme-color" content="#10221e">
 <link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icons/icon-192.png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
 </head>
-<body>
-<div id="bootLoading" style="min-height:100vh;display:flex;align-items:center;justify-content:center;font:600 15px Arial,sans-serif;color:#6f6a63;background:#f5f2ed;">Загрузка UNICA Doors…</div>
-<noscript><p style="padding:20px;font-family:Arial">Для работы приложения включите JavaScript.</p></noscript>
+<body data-screen="boot">
+<div id="boot" class="boot"><span class="mark">U</span></div>
 
-<div id="authScreen" class="auth-screen" hidden>
-  <div class="auth-box">
-    <div class="auth-logo">
-      <div class="logo-box">UNICA<span>.</span></div>
-      <div class="logo-sub">ДВЕРИ И КОМПЛЕКТУЮЩИЕ</div>
-    </div>
-    <h1>Вход в систему</h1>
-    <div class="field">
-      <label>Логин</label>
-      <input type="text" id="loginInput" autocomplete="username" placeholder="Введите логин">
-    </div>
-    <div class="field">
-      <label>Пароль</label>
-      <input type="password" id="passwordInput" autocomplete="current-password" placeholder="Введите пароль" onkeydown="if(event.key==='Enter') doLogin()">
-    </div>
-    <button class="btn primary block" onclick="doLogin()">Войти</button>
-    <p class="auth-error" id="authError" hidden></p>
-  </div>
+<section id="login" class="login" hidden>
+  <div class="login-art" aria-hidden="true"><span></span><span></span><span></span></div>
+  <form class="login-box" onsubmit="doLogin(event)">
+    <div class="login-brand"><span class="mark">U</span><b>UNICA</b></div>
+    <h1>Вход</h1>
+    <label class="field"><span>Логин</span><input id="loginName" type="text" autocomplete="username" autocapitalize="off" required></label>
+    <label class="field"><span>Пароль</span><input id="loginPass" type="password" autocomplete="current-password" required></label>
+    <p id="loginErr" class="form-err" hidden></p>
+    <button id="loginBtn" class="btn primary big block" type="submit">Войти</button>
+  </form>
+</section>
+
+<div class="shell">
+  <aside id="side" class="side"></aside>
+  <main id="app" class="main"></main>
 </div>
+<nav id="tabs" class="tabs" aria-label="Разделы"></nav>
+<div id="sheet" hidden></div>
+<div id="toast" aria-live="polite"></div>
+<div id="print"></div>
 
-<div id="appRoot" class="app-root" hidden>
-  <div class="topbar"></div>
-  <header>
-    <button class="brand" onclick="navigate('#/')">
-      <div class="logo-box">UNICA<span>.</span></div>
-      <div class="logo-sub"><span class="tagline-full">ДВЕРИ И КОМПЛЕКТУЮЩИЕ</span></div>
-    </button>
-    <nav class="main-nav" id="mainNav"></nav>
-    <div class="header-right">
-      <span class="user-chip" id="userChip"></span>
-      <button class="icon-btn-lg" onclick="toggleUserMenu()" title="Меню">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
-      </button>
-    </div>
-  </header>
-
-  <div id="userMenu" class="user-menu" hidden></div>
-
-  <main id="app"></main>
-
-  <div class="cart-bar" id="cartBar" hidden></div>
-  <nav class="bottom-nav" id="bottomNav"></nav>
-</div>
-
-<div id="modalRoot"></div>
-<div id="printRoot"></div>
-<div id="toastRoot"></div>
-
-<script src="/icons.js"></script>
-<script src="/app.js"></script>
-<script src="/sell.js"></script>
-<script src="/analytics.js"></script>
+<script src="/js/core.js"></script>
+<script src="/js/pos.js"></script>
+<script src="/js/docs.js"></script>
+<script src="/js/cash.js"></script>
+<script src="/js/stock.js"></script>
+<script src="/js/contacts.js"></script>
+<script src="/js/reports.js"></script>
+<script src="/js/admin.js"></script>
+<script>boot();</script>
 </body>
 </html>

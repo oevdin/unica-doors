@@ -1,40 +1,25 @@
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
-
-const authRoutes = require('./routes/auth');
-const contractorRoutes = require('./routes/contractors');
-const orderRoutes = require('./routes/orders');
-const catalogRoutes = require('./routes/catalog');
-const salesRoutes = require('./routes/sales');
-const settingsRoutes = require('./routes/settings');
+require('./seed');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-app.use('/api/auth', authRoutes);
-app.use('/api/contractors', contractorRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/sales', salesRoutes);
-app.use('/api/settings', settingsRoutes);
-app.use('/api', catalogRoutes);
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/sales', require('./routes/sales'));
+app.use('/api/cash', require('./routes/cash'));
+app.use('/api/purchases', require('./routes/purchases'));
+app.use('/api/contacts', require('./routes/contacts'));
+app.use('/api/reports', require('./routes/reports'));
+app.use('/api/demo', require('./routes/demo'));
+const catalog = require('./routes/catalog');
+app.use('/api', catalog);
+app.use('/api', (req, res) => res.status(404).json({ error: 'not_found' }));
 
-// when DATA_DIR is set (persistent disk on hosting), product photos live
-// outside public/ — serve them explicitly before the general static handler
-if (process.env.DATA_DIR) {
-  app.use('/uploads/products', express.static(catalogRoutes.UPLOAD_DIR));
-}
+app.use('/uploads', express.static(catalog.UPLOAD_DIR, { maxAge: '30d' }));
+app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: 0 }));
+app.get(/^(?!\/api).*/, (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 
-app.use(express.static(path.join(__dirname, '..', 'public')));
-
-// SPA fallback — anything not /api/* returns the app shell
-app.get(/^(?!\/api).*/, (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`UNICA server running on http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`UNICA работает: http://localhost:${PORT}`));

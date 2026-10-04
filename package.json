@@ -1,20 +1,18 @@
 {
-  "name": "unica-doors",
+  "name": "unica-crm",
   "version": "1.0.0",
-  "description": "UNICA Doors — заявки на двери и комплектующие",
+  "description": "UNICA — продажи, касса, склад, клиенты и аналитика для магазина дверей",
   "main": "server/index.js",
   "type": "commonjs",
   "engines": {
     "node": "20.x"
   },
   "scripts": {
-    "start": "node server/index.js",
-    "seed": "node server/seed.js"
+    "start": "node server/index.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.3.0",
-    "cors": "^2.8.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.4.0",
