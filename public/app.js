@@ -1404,12 +1404,20 @@ async function doLogin() {
 
 async function boot() {
   Cart.load();
-  const ok = await Auth.init();
-  if (ok) {
-    await loadCategories();
-    router();
-  } else {
+  try {
+    const ok = await Auth.init();
+    if (ok) {
+      await loadCategories();
+      await router();
+    } else {
+      showAuthScreen();
+    }
+  } catch (e) {
+    console.error(e);
     showAuthScreen();
+  } finally {
+    const l = document.getElementById('bootLoading');
+    if (l) l.remove();
   }
 
   if ('serviceWorker' in navigator) {

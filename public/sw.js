@@ -1,4 +1,4 @@
-const CACHE_NAME = 'unica-doors-shell-v2';
+const CACHE_NAME = 'unica-doors-shell-v3';
 const SHELL_FILES = [
   '/',
   '/index.html',
@@ -12,7 +12,7 @@ const SHELL_FILES = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_FILES)).catch(() => {})
+    Promise.resolve()
   );
   self.skipWaiting();
 });
@@ -26,17 +26,19 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first for API calls, cache-first for the app shell, pass-through for everything else
+// Network-first for the app shell (fresh code after every deploy), cache only as
+// an offline fallback, and only successful responses get cached. API is never cached.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-
-  if (url.pathname.startsWith('/api/')) {
-    return; // always go to network, never cache API responses
-  }
-
-  if (SHELL_FILES.includes(url.pathname)) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request))
-    );
-  }
+  if (event.request.method !== 'GET' || url.pathname.startsWith('/api/')) return;
+  if (!SHELL_FILES.includes(url.pathname)) return;
+  event.respondWith(
+    fetch(event.request).then((res) => {
+      if (res && res.ok) {
+        const copy = res.clone();
+        caches.open(CACHE_NAME).then((c) => c.put(event.request, copy)).catch(() => {});
+      }
+      return res;
+    }).catch(() => caches.match(event.request))
+  );
 });
