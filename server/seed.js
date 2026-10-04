@@ -34,8 +34,8 @@ function seedCatalog() {
   // the product already exists, insert if it's new. This makes it safe to
   // re-run `npm run seed` whenever the price list changes.
   const findProd = db.prepare('SELECT id, photo FROM products WHERE category_id = ? AND name = ?');
-  const insertProd = db.prepare('INSERT INTO products (category_id, name, price, photo, description, unit, options) VALUES (?,?,?,?,?,?,?)');
-  const updateProd = db.prepare('UPDATE products SET price = ?, description = ?, photo = COALESCE(?, photo), unit = ?, options = ? WHERE id = ?');
+  const insertProd = db.prepare('INSERT INTO products (category_id, name, price, photo, description, unit, options, cost) VALUES (?,?,?,?,?,?,?,?)');
+  const updateProd = db.prepare('UPDATE products SET price = ?, description = ?, photo = COALESCE(?, photo), unit = ?, options = ?, cost = COALESCE(?, cost) WHERE id = ?');
   const opts = (p) => (p.options && Object.keys(p.options).length ? JSON.stringify(p.options) : null);
   let inserted = 0, updated = 0;
   const upsertProds = db.transaction((prods) => {
@@ -44,10 +44,10 @@ function seedCatalog() {
       if (!catId) continue;
       const existing = findProd.get(catId, p.name);
       if (existing) {
-        updateProd.run(p.price, p.description || null, p.photo || null, p.unit || 'шт', opts(p), existing.id);
+        updateProd.run(p.price, p.description || null, p.photo || null, p.unit || 'шт', opts(p), p.cost ?? null, existing.id);
         updated++;
       } else {
-        insertProd.run(catId, p.name, p.price, p.photo, p.description || null, p.unit || 'шт', opts(p));
+        insertProd.run(catId, p.name, p.price, p.photo, p.description || null, p.unit || 'шт', opts(p), p.cost ?? null);
         inserted++;
       }
     }

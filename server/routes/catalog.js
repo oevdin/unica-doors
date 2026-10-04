@@ -4,7 +4,25 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const db = require('../db');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
+const { requireAuth, requireAdmin, JWT_SECRET } = require('../middleware/auth');
+
+// catalog reads are public; себестоимость is only returned to an admin
+function isAdminRequest(req) {
+  const h = req.headers.authorization || '';
+  if (!h.startsWith('Bearer ')) return false;
+  try { return jwt.verify(h.slice(7), JWT_SECRET).role === 'admin'; } catch (e) { return false; }
+}
+function publicProduct(p, admin) {
+  if (!p || admin) return p;
+  const { cost, ...rest } = p;
+  return rest;
+}
+function toIntOrNull(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? n : null;
+}
 
 const router = express.Router();
 
@@ -88,11 +106,12 @@ router.get('/products', (req, res) => {
   if (category_id) { sql += ' AND category_id = ?'; params.push(Number(category_id)); }
   if (q) { sql += ' AND name LIKE ?'; params.push(`%${q}%`); }
   sql += ' ORDER BY name COLLATE NOCASE';
-  res.json(db.prepare(sql).all(...params));
+  const admin = isAdminRequest(req);
+  res.json(db.prepare(sql).all(...params).map(p => publicProduct(p, admin)));
 });
 
 router.post('/products', requireAuth, requireAdmin, upload.single('photo'), async (req, res) => {
-  const { name, price, category_id, description, unit, options } = req.body || {};
+  const { name, price, category_id, description, unit, options, cost } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: 'name_required' });
   if (!category_id) return res.status(400).json({ error: 'category_id_required' });
 
@@ -101,9 +120,9 @@ router.post('/products', requireAuth, requireAdmin, upload.single('photo'), asyn
     photoPath = await saveProductPhoto(req.file.buffer);
   }
 
-  const info = db.prepare('INSERT INTO products (category_id, name, price, photo, description, unit, options) VALUES (?,?,?,?,?,?,?)')
+  const info = db.prepare('INSERT INTO products (category_id, name, price, photo, description, unit, options, cost) VALUES (?,?,?,?,?,?,?,?)')
     .run(Number(category_id), name.trim(), price ? Number(price) : null, photoPath, description || null,
-      (unit && unit.trim()) || 'шт', normalizeOptions(options) ?? null);
+      (unit && unit.trim()) || 'шт', normalizeOptions(options) ?? null, toIntOrNull(cost));
   res.status(201).json(db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid));
 });
 
@@ -112,8 +131,9 @@ router.patch('/products/:id', requireAuth, requireAdmin, upload.single('photo'),
   const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
   if (!existing) return res.status(404).json({ error: 'not_found' });
 
-  const { name, price, category_id, description, unit, options } = req.body || {};
+  const { name, price, category_id, description, unit, options, cost } = req.body || {};
   const fields = [], values = [];
+  if (cost !== undefined) { fields.push('cost = ?'); values.push(toIntOrNull(cost)); }
   if (unit !== undefined) { fields.push('unit = ?'); values.push((unit && unit.trim()) || 'шт'); }
   if (options !== undefined) { fields.push('options = ?'); values.push(normalizeOptions(options)); }
   if (name !== undefined) { fields.push('name = ?'); values.push(name); }

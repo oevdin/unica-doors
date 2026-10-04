@@ -1,5 +1,5 @@
 /* ============================================================
-   UNICA — заявки и контрагенты. SPA, vanilla JS, hash-роутинг.
+   UNICA Doors — продажи, каталог, заявки. SPA, vanilla JS, hash-роутинг.
    ============================================================ */
 
 /* ---------- constants & helpers ---------- */
@@ -66,6 +66,7 @@ const Api = {
   get(path) { return this.req('GET', path); },
   post(path, body, isForm) { return this.req('POST', path, body, isForm); },
   patch(path, body, isForm) { return this.req('PATCH', path, body, isForm); },
+  put(path, body) { return this.req('PUT', path, body); },
   del(path) { return this.req('DELETE', path); },
 };
 
@@ -217,34 +218,49 @@ async function router() {
   app.innerHTML = '<div class="empty-state">Загрузка…</div>';
 
   try {
-    if (parts.length === 0) {
-      currentRoute = { name: 'home' };
+    const p0 = parts[0] || '';
+    if (p0 === '' || p0 === 'sell') {
+      currentRoute = { name: 'sell' };
+      await viewSell();
+    } else if (p0 === 'catalog') {
+      currentRoute = { name: 'catalog' };
       await viewHome();
-    } else if (parts[0] === 'category' && parts[1]) {
+    } else if (p0 === 'category' && parts[1]) {
       currentRoute = { name: 'category', id: Number(parts[1]) };
       await viewCategory(Number(parts[1]));
-    } else if (parts[0] === 'search') {
+    } else if (p0 === 'search') {
       currentRoute = { name: 'search', q: query.q || '' };
       await viewSearch(query.q || '');
-    } else if (parts[0] === 'cart') {
-      currentRoute = { name: 'cart' };
-      await viewCart();
-    } else if (parts[0] === 'contractors') {
+    } else if (p0 === 'cart') {
+      navigate('#/sell'); return;
+    } else if (p0 === 'sales' && parts[1]) {
+      currentRoute = { name: 'sale-detail', id: Number(parts[1]) };
+      await viewSaleDetail(Number(parts[1]), query.new === '1');
+    } else if (p0 === 'sales') {
+      currentRoute = { name: 'sales' };
+      await viewSales();
+    } else if (p0 === 'analytics') {
+      currentRoute = { name: 'analytics' };
+      await viewAnalytics();
+    } else if (p0 === 'more') {
+      currentRoute = { name: 'more' };
+      viewMore();
+    } else if (p0 === 'contractors') {
       currentRoute = { name: 'contractors' };
       await viewContractors();
-    } else if (parts[0] === 'orders' && parts[1]) {
+    } else if (p0 === 'orders' && parts[1]) {
       currentRoute = { name: 'order-detail', id: Number(parts[1]) };
       await viewOrderDetail(Number(parts[1]));
-    } else if (parts[0] === 'orders') {
+    } else if (p0 === 'orders') {
       currentRoute = { name: 'orders' };
       await viewOrders(query);
-    } else if (parts[0] === 'admin') {
+    } else if (p0 === 'admin') {
       if (!Auth.isAdmin()) { navigate('#/'); return; }
       currentRoute = { name: 'admin', tab: parts[1] || 'catalog' };
       await viewAdmin(parts[1] || 'catalog');
     } else {
-      currentRoute = { name: 'home' };
-      await viewHome();
+      currentRoute = { name: 'sell' };
+      await viewSell();
     }
   } catch (e) {
     if (e.message !== 'unauthorized') {
@@ -316,7 +332,7 @@ async function viewCategory(catId) {
   const app = document.getElementById('app');
 
   let html = `<nav class="cat-strip">
-    <button class="cat-chip" onclick="navigate('#/')">${backIcon()} Все</button>
+    <button class="cat-chip" onclick="navigate('#/catalog')">${backIcon()} Все</button>
     ${CATEGORIES.map(c => `<button class="cat-chip ${c.id === catId ? 'active' : ''}" onclick="navigate('#/category/${c.id}')">${iconSvg(c.icon)}${esc(c.name)}</button>`).join('')}
   </nav>`;
   html += `<h1 class="page-title">${cat ? esc(cat.name) : 'Раздел'}</h1><p class="page-sub">${products.length} ${pluralItems(products.length)}</p>`;
@@ -383,7 +399,7 @@ function quickAdd(productId) {
   Cart.add(p, {}, 1);
   refreshProductCardAdd(productId);
   updateCartBadge();
-  showToast(`«${p.name}» добавлен в заявку`);
+  showToast(`«${p.name}» добавлен в чек`);
 }
 
 /* ---- product detail sheet: options, qty, kit ---- */
@@ -523,7 +539,7 @@ function addDetailToCart() {
   closeModal();
   refreshProductCardAdd(p.id);
   updateCartBadge();
-  showToast(extra ? `Дверь и ${extra} поз. комплектующих добавлены в заявку` : `«${p.name}» добавлен в заявку`);
+  showToast(extra ? `Дверь и ${extra} поз. комплектующих добавлены в чек` : `«${p.name}» добавлен в чек`);
 }
 
 function qtyStepperHtml(key, qty) {
@@ -542,10 +558,13 @@ function changeCartQty(key, qty) {
   if (pid) refreshProductCardAdd(pid);
   updateCartBadge();
   if (currentRoute.name === 'cart') renderCartView();
+  if (document.querySelector('.co-lines')) { if (Cart.items.length) renderCheckout(); else closeModal(); }
 }
 function refreshProductCardAdd(productId) {
   const p = PRODUCT_INDEX[productId];
   if (!p) return;
+  if (typeof refreshPosRow === 'function') refreshPosRow(productId);
+  if (typeof renderTicketPanel === 'function') renderTicketPanel();
   document.querySelectorAll('[data-add-for="' + productId + '"]').forEach(el => { el.innerHTML = productAddHtml(p); });
 }
 
@@ -592,22 +611,28 @@ function confirmClearCart() {
     <p style="color:var(--text-mute);font-size:14px;">Все позиции будут убраны из текущей заявки.</p>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Отмена</button>
-      <button class="btn danger" onclick="closeModal(); Cart.clear(true); updateCartBadge(); renderCartView();">Очистить</button>
+      <button class="btn danger" onclick="clearCartNow()">Очистить</button>
     </div>
   `);
+}
+function clearCartNow() {
+  const ids = Cart.items.map(i => i.product_id);
+  closeModal(); Cart.clear(true); updateCartBadge(); renderCartView();
+  if (typeof renderTicketPanel === 'function') renderTicketPanel();
+  ids.forEach(id => { if (typeof refreshPosRow === 'function' && PRODUCT_INDEX[id]) refreshPosRow(id); });
 }
 function updateCartBar() {
   const bar = document.getElementById('cartBar');
   if (!bar) return;
-  const show = Cart.items.length > 0 && ['home', 'category', 'search'].includes(currentRoute.name);
+  const show = Cart.items.length > 0 && ['catalog', 'category', 'search'].includes(currentRoute.name);
   bar.hidden = !show;
   document.body.classList.toggle('has-cart-bar', show);
   if (show) {
-    bar.innerHTML = `<button class="cart-bar-btn" onclick="navigate('#/cart')">
+    bar.innerHTML = `<button class="cart-bar-btn" onclick="navigate('#/sell')">
       <span class="cb-count">${Cart.items.length}</span>
-      <span class="cb-text">Заявка<small>${Cart.count()} ${pluralItems(Cart.count())}</small></span>
+      <span class="cb-text">Текущий чек<small>${Cart.count()} ед.</small></span>
       <span class="cb-sum">${fmtPrice(Cart.total())} сом</span>
-      <span class="cb-go">Открыть ›</span>
+      <span class="cb-go">К продаже ›</span>
     </button>`;
   }
 }
@@ -616,8 +641,9 @@ function updateCartBadge() {
   const badge = document.querySelector('.bottom-nav .badge[data-nav="cart"], .main-nav .badge[data-nav="cart"]');
   const count = Cart.count();
   document.querySelectorAll('[data-cart-badge]').forEach(el => {
-    el.setAttribute('data-count', count);
-    el.style.display = count > 0 ? '' : 'none';
+    el.setAttribute('data-count', Cart.items.length);
+    el.textContent = Cart.items.length;
+    el.style.display = Cart.items.length > 0 ? '' : 'none';
   });
 }
 
@@ -905,10 +931,7 @@ function printInvoice() {
       <div>Получил ____________________</div>
     </div>
   </div>`;
-  document.body.classList.add('printing');
-  const done = () => { document.body.classList.remove('printing'); root.innerHTML = ''; window.removeEventListener('afterprint', done); };
-  window.addEventListener('afterprint', done);
-  setTimeout(() => window.print(), 50);
+  printHtml(root.innerHTML, 'A4');
 }
 
 function shareInvoice() {
@@ -978,12 +1001,14 @@ async function viewAdmin(tab) {
   let html = `<h1 class="page-title">Администрирование</h1>`;
   html += `<div class="page-toolbar">
     <button class="btn ${tab === 'catalog' ? 'primary' : ''}" onclick="navigate('#/admin/catalog')">Каталог</button>
+    <button class="btn ${tab === 'company' ? 'primary' : ''}" onclick="navigate('#/admin/company')">Реквизиты</button>
     <button class="btn ${tab === 'users' ? 'primary' : ''}" onclick="navigate('#/admin/users')">Пользователи</button>
   </div>
   <div id="adminTabRoot"></div>`;
   app.innerHTML = html;
 
   if (tab === 'users') await renderAdminUsers();
+  else if (tab === 'company') await renderAdminCompany();
   else await renderAdminCatalog();
 }
 
@@ -1013,7 +1038,7 @@ async function renderAdminCatalog() {
         <div class="cart-item-photo" style="margin-right:12px;">${p.photo ? `<img src="${p.photo}">` : photoPlaceholder()}</div>
         <div class="lr-main">
           <p class="lr-title" style="font-size:13.5px;">${esc(p.name)}</p>
-          <p class="lr-sub">${fmtPrice(p.price)} сом${unitSuffix(p)}${parseOptions(p) ? ' · ' + optionsSummary(p) : ''}</p>
+          <p class="lr-sub">${fmtPrice(p.price)} сом${unitSuffix(p)} · себест. ${p.cost != null ? fmtPrice(p.cost) : '<b style="color:var(--red)">не указана</b>'}${p.price && p.cost != null ? ` · наценка ${Math.round((p.price - p.cost) / p.price * 100)}%` : ''}</p>
         </div>
         <div class="lr-actions">
           <button class="icon-btn" onclick="openProductFormModal(${p.id}, ${cat.id})">${editIcon()}</button>
@@ -1102,6 +1127,7 @@ function openProductFormModal(id, categoryId) {
       <div class="field"><label>Наименование</label><input type="text" id="fName" value="${editing ? esc(editing.name) : ''}" placeholder="Название товара"></div>
       <div class="field-row">
         <div class="field"><label>Цена, сом</label><input type="number" inputmode="numeric" id="fPrice" value="${editing ? (editing.price ?? '') : ''}" placeholder="0"></div>
+        <div class="field"><label>Себестоимость</label><input type="number" inputmode="numeric" id="fCost" value="${editing ? (editing.cost ?? '') : ''}" placeholder="закупка"></div>
         <div class="field"><label>Ед. изм.</label><input type="text" id="fUnit" list="unitList" value="${editing ? esc(editing.unit || 'шт') : 'шт'}"><datalist id="unitList"><option>шт</option><option>компл.</option><option>пог. м</option><option>упак.</option></datalist></div>
       </div>
       <div class="field"><label>Варианты (каждая строка: Название: значение, значение…)</label>
@@ -1136,6 +1162,7 @@ async function saveProduct(id, oldCategoryId) {
   form.append('category_id', categoryId);
   form.append('description', description);
   form.append('unit', document.getElementById('fUnit').value.trim() || 'шт');
+  form.append('cost', document.getElementById('fCost').value);
   form.append('options', JSON.stringify(textToOptions(document.getElementById('fOptions').value)));
   if (photoFile) form.append('photo', photoFile);
 
@@ -1271,27 +1298,20 @@ async function deleteUser(id) {
    ============================================================ */
 
 function renderNav() {
-  const cartCount = Cart.count();
   const items = [
-    { key: 'home', label: 'Каталог', hash: '#/', icon: homeIcon, match: r => r.name === 'home' || r.name === 'category' || r.name === 'search' },
-    { key: 'cart', label: 'Заявка', hash: '#/cart', icon: cartIcon, match: r => r.name === 'cart', badge: cartCount },
-    { key: 'contractors', label: 'Контрагенты', hash: '#/contractors', icon: usersIcon, match: r => r.name === 'contractors' },
-    { key: 'orders', label: 'Заявки', hash: '#/orders', icon: listIcon, match: r => r.name === 'orders' || r.name === 'order-detail' },
+    { label: 'Продажа', hash: '#/sell', icon: sellIcon, match: r => r.name === 'sell', badge: Cart.items.length },
+    { label: 'Каталог', hash: '#/catalog', icon: homeIcon, match: r => ['catalog', 'category', 'search'].includes(r.name) },
+    { label: 'История', hash: '#/sales', icon: receiptIcon, match: r => r.name === 'sales' || r.name === 'sale-detail' },
   ];
-  if (Auth.isAdmin()) items.push({ key: 'admin', label: 'Админ', hash: '#/admin', icon: adminIcon, match: r => r.name === 'admin' });
+  if (Auth.isAdmin()) items.push({ label: 'Аналитика', hash: '#/analytics', icon: chartIcon, match: r => r.name === 'analytics' });
+  items.push({ label: 'Ещё', hash: '#/more', icon: moreIcon, match: r => ['more', 'orders', 'order-detail', 'contractors', 'admin'].includes(r.name) });
 
-  const navHtml = items.map(it => {
-    const active = it.match(currentRoute);
-    const badge = it.badge > 0 ? ` <span class="badge" data-cart-badge data-count="${it.badge}"></span>` : '';
-    return `<button class="${active ? 'active' : ''}" onclick="navigate('${it.hash}')">${it.icon()}${badge}<span>${it.label}</span></button>`;
-  }).join('');
-
-  document.getElementById('mainNav').innerHTML = items.map(it => {
-    const active = it.match(currentRoute);
-    return `<button class="${active ? 'active' : ''}" onclick="navigate('${it.hash}')">${it.label}${it.badge > 0 ? ' · ' + it.badge : ''}</button>`;
-  }).join('');
-
-  document.getElementById('bottomNav').innerHTML = `<div class="bottom-nav-inner">${navHtml}</div>`;
+  document.getElementById('bottomNav').innerHTML = `<div class="bottom-nav-inner">` + items.map(it => {
+    const badge = it.badge !== undefined ? `<span class="nav-badge" data-cart-badge style="${it.badge ? '' : 'display:none'}">${it.badge}</span>` : '';
+    return `<button class="${it.match(currentRoute) ? 'active' : ''}" onclick="navigate('${it.hash}')"><span class="nav-ico">${it.icon()}${badge}</span><span>${it.label}</span></button>`;
+  }).join('') + `</div>`;
+  document.getElementById('mainNav').innerHTML = items.map(it =>
+    `<button class="${it.match(currentRoute) ? 'active' : ''}" onclick="navigate('${it.hash}')">${it.icon()}${it.label}${it.badge !== undefined ? `<span class="nav-pill" data-cart-badge style="${it.badge ? '' : 'display:none'}">${it.badge}</span>` : ''}</button>`).join('');
   updateCartBadge();
 }
 
@@ -1395,6 +1415,7 @@ async function doLogin() {
   try {
     await Auth.login(login, password);
     Cart.load();
+    await Promise.all([loadCategories(), loadSettings()]);
     router();
   } catch (e) {
     errEl.textContent = 'Неверный логин или пароль';
@@ -1407,7 +1428,7 @@ async function boot() {
   try {
     const ok = await Auth.init();
     if (ok) {
-      await loadCategories();
+      await Promise.all([loadCategories(), loadSettings()]);
       await router();
     } else {
       showAuthScreen();

@@ -88,6 +88,51 @@ if (!productCols.includes('options')) {
   db.exec('ALTER TABLE products ADD COLUMN options TEXT');
 }
 
+// себестоимость (закупочная цена) — видит только администратор
+if (!db.prepare("PRAGMA table_info(products)").all().some(c => c.name === 'cost')) {
+  db.exec('ALTER TABLE products ADD COLUMN cost INTEGER');
+}
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS sales (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  seller_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  contractor_id INTEGER REFERENCES contractors(id) ON DELETE SET NULL,
+  customer_name TEXT,
+  customer_phone TEXT,
+  payment TEXT NOT NULL CHECK(payment IN ('cash','transfer','debt')) DEFAULT 'cash',
+  subtotal INTEGER NOT NULL DEFAULT 0,
+  discount INTEGER NOT NULL DEFAULT 0,
+  total INTEGER NOT NULL DEFAULT 0,
+  cost_total INTEGER NOT NULL DEFAULT 0,
+  note TEXT,
+  status TEXT NOT NULL CHECK(status IN ('done','cancelled')) DEFAULT 'done',
+  paid_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS sale_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+  category_id INTEGER,
+  product_name TEXT NOT NULL,
+  unit TEXT NOT NULL DEFAULT 'шт',
+  qty INTEGER NOT NULL DEFAULT 1,
+  price INTEGER NOT NULL DEFAULT 0,
+  cost INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_sales_created ON sales(created_at);
+CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+`);
+
+if (!db.prepare("PRAGMA table_info(sales)").all().some(c => c.name === 'demo')) {
+  db.exec('ALTER TABLE sales ADD COLUMN demo INTEGER NOT NULL DEFAULT 0');
+}
+
 const itemCols = db.prepare("PRAGMA table_info(order_items)").all().map(c => c.name);
 if (!itemCols.includes('unit')) {
   db.exec("ALTER TABLE order_items ADD COLUMN unit TEXT NOT NULL DEFAULT 'шт'");

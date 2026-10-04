@@ -6,6 +6,8 @@ const authRoutes = require('./routes/auth');
 const contractorRoutes = require('./routes/contractors');
 const orderRoutes = require('./routes/orders');
 const catalogRoutes = require('./routes/catalog');
+const salesRoutes = require('./routes/sales');
+const settingsRoutes = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +18,8 @@ app.use(express.json({ limit: '2mb' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/contractors', contractorRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/sales', salesRoutes);
+app.use('/api/settings', settingsRoutes);
 app.use('/api', catalogRoutes);
 
 // when DATA_DIR is set (persistent disk on hosting), product photos live

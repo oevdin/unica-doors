@@ -1,10 +1,12 @@
-const CACHE_NAME = 'unica-doors-shell-v3';
+const CACHE_NAME = 'unica-doors-shell-v4';
 const SHELL_FILES = [
   '/',
   '/index.html',
   '/app.css',
   '/app.js',
   '/icons.js',
+  '/sell.js',
+  '/analytics.js',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
