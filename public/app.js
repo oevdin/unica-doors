@@ -254,6 +254,7 @@ async function router() {
   }
 
   renderNav();
+  updateCartBar();
   window.scrollTo({ top: 0 });
 }
 
@@ -314,10 +315,15 @@ async function viewCategory(catId) {
   const products = await loadProducts(catId);
   const app = document.getElementById('app');
 
-  let html = `<button class="btn small" onclick="navigate('#/')" style="margin-bottom:16px;">${backIcon()} Все разделы</button>`;
+  let html = `<nav class="cat-strip">
+    <button class="cat-chip" onclick="navigate('#/')">${backIcon()} Все</button>
+    ${CATEGORIES.map(c => `<button class="cat-chip ${c.id === catId ? 'active' : ''}" onclick="navigate('#/category/${c.id}')">${iconSvg(c.icon)}${esc(c.name)}</button>`).join('')}
+  </nav>`;
   html += `<h1 class="page-title">${cat ? esc(cat.name) : 'Раздел'}</h1><p class="page-sub">${products.length} ${pluralItems(products.length)}</p>`;
   html += renderProductGrid(products);
   app.innerHTML = html;
+  const active = app.querySelector('.cat-chip.active');
+  if (active) active.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
 
 async function ensureCategories() { if (CATEGORIES.length === 0) await loadCategories(); }
@@ -336,7 +342,7 @@ function unitSuffix(p) { return p.unit && p.unit !== 'шт' ? ` / ${esc(p.unit)}
 function optionsSummary(p) {
   const o = parseOptions(p);
   if (!o) return '';
-  return Object.entries(o).map(([k, v]) => `${esc(k)}: ${v.length}`).join(' · ');
+  return 'Варианты: ' + Object.keys(o).map(k => esc(k.toLowerCase())).join(', ');
 }
 
 function renderProductGrid(products) {
@@ -559,27 +565,54 @@ function renderCartView() {
     root.innerHTML = html;
     return;
   }
-  html += `<div class="cart-list">`;
-  for (const it of Cart.items) {
+  html += `<div class="inv-list">`;
+  Cart.items.forEach((it, i) => {
     const k = esc(it.key).replace(/'/g, "\\'");
     const ol = optsLabel(it.opts);
-    html += `<div class="cart-item">
-      <div class="cart-item-photo">${it.photo ? `<img src="${it.photo}">` : photoPlaceholder()}</div>
-      <div class="cart-item-body">
-        <p class="cart-item-name">${esc(it.name)}</p>
-        ${ol ? `<p class="cart-item-opts">${esc(ol)}</p>` : ''}
-        <div class="cart-item-price">${fmtPrice(it.price)} × ${it.qty} ${esc(it.unit || 'шт')} = <b>${fmtPrice((it.price || 0) * it.qty)} сом</b></div>
+    html += `<div class="inv-row">
+      <div class="inv-num">${i + 1}</div>
+      <div class="inv-main">
+        <div class="inv-name">${esc(it.name)}${ol ? ` <span class="inv-opts">${esc(ol)}</span>` : ''}</div>
+        <div class="inv-meta">${fmtPrice(it.price)} сом / ${esc(it.unit || 'шт')}</div>
       </div>
-      ${qtyStepperHtml(it.key, it.qty)}
-      <button class="icon-btn danger" onclick="changeCartQty('${k}', 0)">${trashIcon()}</button>
+      <div class="inv-qty">${qtyStepperHtml(it.key, it.qty)}</div>
+      <div class="inv-sum">${fmtPrice((it.price || 0) * it.qty)}</div>
+      <button class="inv-del" onclick="changeCartQty('${k}', 0)" title="Убрать">${closeIcon()}</button>
     </div>`;
-  }
+  });
   html += `</div>`;
-  html += `<div class="cart-summary"><span>Итого, ${Cart.count()} ${pluralItems(Cart.count())}</span><span class="total">${fmtPrice(Cart.total())} сом</span></div>`;
+  html += `<div class="cart-summary"><span>Итого: ${Cart.items.length} поз., ${Cart.count()} ед.</span><span class="total">${fmtPrice(Cart.total())} сом</span></div>`;
+  html += `<div class="cart-actions"><button class="btn" onclick="navigate('#/')">${plusIcon()} Добавить ещё</button><button class="btn" onclick="confirmClearCart()">${trashIcon()} Очистить</button></div>`;
   html += `<button class="btn primary block" onclick="openSubmitOrderModal()">Оформить заявку</button>`;
   root.innerHTML = html;
 }
+function confirmClearCart() {
+  renderModal(`
+    <h3>Очистить заявку?</h3>
+    <p style="color:var(--text-mute);font-size:14px;">Все позиции будут убраны из текущей заявки.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Отмена</button>
+      <button class="btn danger" onclick="closeModal(); Cart.clear(true); updateCartBadge(); renderCartView();">Очистить</button>
+    </div>
+  `);
+}
+function updateCartBar() {
+  const bar = document.getElementById('cartBar');
+  if (!bar) return;
+  const show = Cart.items.length > 0 && ['home', 'category', 'search'].includes(currentRoute.name);
+  bar.hidden = !show;
+  document.body.classList.toggle('has-cart-bar', show);
+  if (show) {
+    bar.innerHTML = `<button class="cart-bar-btn" onclick="navigate('#/cart')">
+      <span class="cb-count">${Cart.items.length}</span>
+      <span class="cb-text">Заявка<small>${Cart.count()} ${pluralItems(Cart.count())}</small></span>
+      <span class="cb-sum">${fmtPrice(Cart.total())} сом</span>
+      <span class="cb-go">Открыть ›</span>
+    </button>`;
+  }
+}
 function updateCartBadge() {
+  updateCartBar();
   const badge = document.querySelector('.bottom-nav .badge[data-nav="cart"], .main-nav .badge[data-nav="cart"]');
   const count = Cart.count();
   document.querySelectorAll('[data-cart-badge]').forEach(el => {
@@ -624,7 +657,7 @@ async function submitOrder() {
 
   const items = Cart.items.map(it => {
     const ol = optsLabel(it.opts);
-    return { product_id: it.product_id, product_name: it.name + (ol ? ' (' + ol + ')' : ''), price: it.price, qty: it.qty };
+    return { product_id: it.product_id, product_name: it.name + (ol ? ' (' + ol + ')' : ''), price: it.price, qty: it.qty, unit: it.unit || 'шт' };
   });
   try {
     const order = await Api.post('/orders', { contractor_id: Number(contractorId), note: note || null, items });
@@ -820,24 +853,100 @@ async function viewOrderDetail(id) {
 
   if (o.note) html += `<div class="field"><label>Комментарий</label><p style="font-size:14px;color:var(--text);">${esc(o.note)}</p></div>`;
 
-  html += `<div class="field"><label>Состав заявки</label><div class="cart-list">`;
-  for (const it of o.items) {
-    html += `<div class="cart-item">
-      <div class="cart-item-body">
-        <p class="cart-item-name">${esc(it.product_name)}</p>
-        <div class="cart-item-price">${fmtPrice(it.price)} сом × ${it.qty} = <b>${fmtPrice((it.price || 0) * it.qty)} сом</b></div>
-      </div>
-    </div>`;
-  }
-  html += `</div></div>`;
-  html += `<div class="cart-summary"><span>Итого</span><span class="total">${fmtPrice(o.total)} сом</span></div>`;
-
+  LAST_ORDER = o;
+  html += `<div class="doc-actions">
+    <button class="btn primary" onclick="printInvoice()">${printIcon()} Накладная (печать / PDF)</button>
+    <button class="btn" onclick="shareInvoice()">${shareIcon()} Отправить текстом</button>
+  </div>`;
+  html += `<div class="field"><label>Состав заявки</label>${invoiceTableHtml(o)}</div>`;
   if (Auth.isAdmin()) {
     html += `<button class="btn danger" onclick="confirmDeleteOrder(${o.id})" style="margin-top:20px;">${trashIcon()} Удалить заявку</button>`;
   }
 
   app.innerHTML = html;
 }
+/* ---- накладная ---- */
+let LAST_ORDER = null;
+const COMPANY = { name: 'UNICA Doors', sub: 'Межкомнатные и металлические двери, комплектующие' };
+
+function invoiceTableHtml(o) {
+  let rows = '';
+  o.items.forEach((it, i) => {
+    rows += `<tr><td class="c">${i + 1}</td><td>${esc(it.product_name)}<div class="m-only inv-m">${it.qty} ${esc(it.unit || 'шт')} × ${fmtPrice(it.price)} сом</div></td><td class="c col-x">${esc(it.unit || 'шт')}</td>
+      <td class="r col-x">${it.qty}</td><td class="r col-x">${fmtPrice(it.price)}</td><td class="r b">${fmtPrice((it.price || 0) * it.qty)}</td></tr>`;
+  });
+  return `<div class="inv-table-wrap"><table class="inv-table">
+    <thead><tr><th class="c">№</th><th>Наименование товара</th><th class="c col-x">Ед.</th><th class="r col-x">Кол-во</th><th class="r col-x">Цена</th><th class="r">Сумма</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td></td><td class="r">Итого, сом:</td><td class="col-x"></td><td class="col-x"></td><td class="col-x"></td><td class="r b">${fmtPrice(o.total)}</td></tr></tfoot>
+  </table></div>`;
+}
+
+function printInvoice() {
+  const o = LAST_ORDER;
+  if (!o) return;
+  const date = new Date(o.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('ru-RU');
+  const qtyTotal = o.items.reduce((s, it) => s + it.qty, 0);
+  const root = document.getElementById('printRoot');
+  root.innerHTML = `<div class="print-doc">
+    <div class="pd-head">
+      <div><div class="pd-company">${esc(COMPANY.name)}</div><div class="pd-company-sub">${esc(COMPANY.sub)}</div></div>
+      <div class="pd-title">НАКЛАДНАЯ № ${o.id}<span>от ${date}</span></div>
+    </div>
+    <table class="pd-parties">
+      <tr><td>Поставщик:</td><td><b>${esc(COMPANY.name)}</b></td></tr>
+      <tr><td>Покупатель:</td><td><b>${esc(o.contractor_name)}</b>${[o.contractor_contact, o.contractor_phone, o.contractor_address].filter(Boolean).map(x => ', ' + esc(x)).join('')}</td></tr>
+      ${o.note ? `<tr><td>Примечание:</td><td>${esc(o.note)}</td></tr>` : ''}
+    </table>
+    ${invoiceTableHtml(o)}
+    <p class="pd-words">Всего наименований ${o.items.length}, единиц ${qtyTotal}, на сумму ${fmtPrice(o.total)} сом.<br><b>${esc(capitalize(numberToWordsRu(o.total)))} сом 00 тыйын</b></p>
+    <div class="pd-signs">
+      <div>Отпустил ____________________</div>
+      <div>Получил ____________________</div>
+    </div>
+  </div>`;
+  document.body.classList.add('printing');
+  const done = () => { document.body.classList.remove('printing'); root.innerHTML = ''; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(() => window.print(), 50);
+}
+
+function shareInvoice() {
+  const o = LAST_ORDER;
+  if (!o) return;
+  const lines = [`Накладная № ${o.id} — ${o.contractor_name}`, ''];
+  o.items.forEach((it, i) => lines.push(`${i + 1}. ${it.product_name} — ${it.qty} ${it.unit || 'шт'} × ${fmtPrice(it.price)} = ${fmtPrice((it.price || 0) * it.qty)} сом`));
+  lines.push('', `Итого: ${fmtPrice(o.total)} сом`);
+  const text = lines.join('\n');
+  if (navigator.share) { navigator.share({ title: `Накладная № ${o.id}`, text }).catch(() => {}); return; }
+  navigator.clipboard.writeText(text).then(() => showToast('Текст накладной скопирован'), () => showToast('Не удалось скопировать', true));
+}
+
+function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
+function numberToWordsRu(n) {
+  n = Math.floor(Math.abs(n || 0));
+  if (n === 0) return 'ноль';
+  const ones = [['', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять'],
+                ['', 'одна', 'две', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять']];
+  const teens = ['десять', 'одиннадцать', 'двенадцать', 'тринадцать', 'четырнадцать', 'пятнадцать', 'шестнадцать', 'семнадцать', 'восемнадцать', 'девятнадцать'];
+  const tens = ['', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят', 'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто'];
+  const hundreds = ['', 'сто', 'двести', 'триста', 'четыреста', 'пятьсот', 'шестьсот', 'семьсот', 'восемьсот', 'девятьсот'];
+  const groups = [[null, 0], [['тысяча', 'тысячи', 'тысяч'], 1], [['миллион', 'миллиона', 'миллионов'], 0], [['миллиард', 'миллиарда', 'миллиардов'], 0]];
+  const plural = (x, f) => { const a = x % 100, b = x % 10; return (a > 10 && a < 20) ? f[2] : b === 1 ? f[0] : (b >= 2 && b <= 4) ? f[1] : f[2]; };
+  const out = [];
+  for (let g = 0; n > 0 && g < groups.length; g++, n = Math.floor(n / 1000)) {
+    const x = n % 1000;
+    if (!x) continue;
+    const w = [hundreds[Math.floor(x / 100)]];
+    const t = x % 100;
+    if (t >= 10 && t < 20) w.push(teens[t - 10]);
+    else { w.push(tens[Math.floor(t / 10)]); w.push(ones[groups[g][1]][t % 10]); }
+    if (groups[g][0]) w.push(plural(x, groups[g][0]));
+    out.unshift(w.filter(Boolean).join(' '));
+  }
+  return out.join(' ');
+}
+
 async function updateOrderStatus(id, status) {
   try {
     await Api.patch('/orders/' + id, { status });
@@ -1254,6 +1363,8 @@ function homeIcon() { return `<svg viewBox="0 0 24 24" fill="none" stroke-width=
 function usersIcon() { return `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 3-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="9" r="2.6"/><path d="M15.5 14.3c2.6.4 4.8 2.3 5 5.7"/></svg>`; }
 function listIcon() { return `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/></svg>`; }
 function adminIcon() { return `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 11 4.6-2.3 8-6 8-11V5l-8-3Z"/></svg>`; }
+function printIcon() { return `<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>`; }
+function shareIcon() { return `<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>`; }
 function boxIcon() { return `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>`; }
 function notFoundIcon() { return `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>`; }
 function checkIcon() { return `<svg viewBox="0 0 24 24"><path d="M20 6 L9 17 L4 12"/></svg>`; }

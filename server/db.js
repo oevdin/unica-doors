@@ -88,4 +88,9 @@ if (!productCols.includes('options')) {
   db.exec('ALTER TABLE products ADD COLUMN options TEXT');
 }
 
+const itemCols = db.prepare("PRAGMA table_info(order_items)").all().map(c => c.name);
+if (!itemCols.includes('unit')) {
+  db.exec("ALTER TABLE order_items ADD COLUMN unit TEXT NOT NULL DEFAULT 'шт'");
+}
+
 module.exports = db;

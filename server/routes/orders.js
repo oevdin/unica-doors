@@ -9,7 +9,8 @@ const STATUSES = ['new', 'confirmed', 'shipped', 'done', 'cancelled'];
 
 function loadOrderWithItems(id) {
   const order = db.prepare(`
-    SELECT o.*, c.name AS contractor_name, c.phone AS contractor_phone, u.name AS created_by_name
+    SELECT o.*, c.name AS contractor_name, c.phone AS contractor_phone, c.address AS contractor_address,
+           c.contact_person AS contractor_contact, u.name AS created_by_name
     FROM orders o
     JOIN contractors c ON c.id = o.contractor_id
     LEFT JOIN users u ON u.id = o.created_by
@@ -74,11 +75,11 @@ router.post('/', (req, res) => {
       .run(contractor_id, note || null, req.user.id);
     const orderId = info.lastInsertRowid;
     const insertItem = db.prepare(`
-      INSERT INTO order_items (order_id, product_id, product_name, price, qty) VALUES (?,?,?,?,?)
+      INSERT INTO order_items (order_id, product_id, product_name, price, qty, unit) VALUES (?,?,?,?,?,?)
     `);
     for (const it of items) {
       if (!it.product_name) throw new Error('item_name_required');
-      insertItem.run(orderId, it.product_id || null, it.product_name, it.price ?? null, it.qty || 1);
+      insertItem.run(orderId, it.product_id || null, it.product_name, it.price ?? null, it.qty || 1, it.unit || 'шт');
     }
     return orderId;
   });
@@ -115,10 +116,10 @@ router.patch('/:id', (req, res) => {
     if (Array.isArray(items)) {
       db.prepare('DELETE FROM order_items WHERE order_id = ?').run(id);
       const insertItem = db.prepare(`
-        INSERT INTO order_items (order_id, product_id, product_name, price, qty) VALUES (?,?,?,?,?)
+        INSERT INTO order_items (order_id, product_id, product_name, price, qty, unit) VALUES (?,?,?,?,?,?)
       `);
       for (const it of items) {
-        insertItem.run(id, it.product_id || null, it.product_name, it.price ?? null, it.qty || 1);
+        insertItem.run(id, it.product_id || null, it.product_name, it.price ?? null, it.qty || 1, it.unit || 'шт');
       }
       db.prepare("UPDATE orders SET updated_at = datetime('now') WHERE id = ?").run(id);
     }
