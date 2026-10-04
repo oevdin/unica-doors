@@ -1,0 +1,15 @@
+{
+  "name": "UNICA Doors — заявки",
+  "short_name": "UNICA Doors",
+  "description": "Межкомнатные и металлические двери, комплектующие и фурнитура — заявки и контрагенты",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#131c3e",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

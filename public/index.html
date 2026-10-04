@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UNICA Doors — двери и комплектующие</title>
+<meta name="theme-color" content="#131c3e">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<div id="authScreen" class="auth-screen" hidden>
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="logo-box">UNICA<span>.</span></div>
+      <div class="logo-sub">ДВЕРИ И КОМПЛЕКТУЮЩИЕ</div>
+    </div>
+    <h1>Вход в систему</h1>
+    <div class="field">
+      <label>Логин</label>
+      <input type="text" id="loginInput" autocomplete="username" placeholder="Введите логин">
+    </div>
+    <div class="field">
+      <label>Пароль</label>
+      <input type="password" id="passwordInput" autocomplete="current-password" placeholder="Введите пароль" onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="btn primary block" onclick="doLogin()">Войти</button>
+    <p class="auth-error" id="authError" hidden></p>
+  </div>
+</div>
+
+<div id="appRoot" class="app-root" hidden>
+  <div class="topbar"></div>
+  <header>
+    <button class="brand" onclick="navigate('#/')">
+      <div class="logo-box">UNICA<span>.</span></div>
+      <div class="logo-sub"><span class="tagline-full">ДВЕРИ И КОМПЛЕКТУЮЩИЕ</span></div>
+    </button>
+    <nav class="main-nav" id="mainNav"></nav>
+    <div class="header-right">
+      <span class="user-chip" id="userChip"></span>
+      <button class="icon-btn-lg" onclick="toggleUserMenu()" title="Меню">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="userMenu" class="user-menu" hidden></div>
+
+  <main id="app"></main>
+
+  <nav class="bottom-nav" id="bottomNav"></nav>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script src="/icons.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
